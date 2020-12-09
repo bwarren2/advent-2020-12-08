@@ -9,55 +9,53 @@ import (
 	mapset "github.com/deckarep/golang-set"
 )
 
+// Op is an instruction in this advent challenge
 type Op struct {
 	instruction string
 	offset      int64
 }
 
-// RecordsFromFile returns a channel that gives records from a file
-func RecordsFromFile(filename string) <-chan Op {
+// Flip turns a nop into a jmp or vice versa
+func (o *Op) Flip() {
+	if o.instruction == "nop" {
+		o.instruction = "jmp"
+	} else if o.instruction == "jmp" {
+		o.instruction = "nop"
+	}
+}
+
+// RecordsFromFile returns a list of Ops for a file
+func RecordsFromFile(filename string) []Op {
 	file, err := os.Open(filename)
 	if err != nil {
 		panic(err)
 	}
-	iterator := make(chan Op)
+
+	ops := make([]Op, 0)
 
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
-	go func(scanner *bufio.Scanner) {
 
-		for scanner.Scan() {
-			line := scanner.Text()
-			sides := strings.Fields(line)
-			offset, err := strconv.ParseInt(sides[1], 10, 64)
-			if err != nil {
-				panic(err)
-			}
-			op := Op{sides[0], offset}
-			iterator <- op
+	for scanner.Scan() {
+		line := scanner.Text()
+		sides := strings.Fields(line)
+		offset, err := strconv.ParseInt(sides[1], 10, 64)
+		if err != nil {
+			panic(err)
 		}
-		close(iterator)
-	}(scanner)
-	return iterator
-}
-
-func OpList(filename string) []Op {
-	ops := make([]Op, 0)
-	iterator := RecordsFromFile(filename)
-	for op := range iterator {
+		op := Op{sides[0], offset}
 		ops = append(ops, op)
 	}
 	return ops
 }
 
-func TerminatesAndAcc(filename string) (bool, int64) {
-	opList := OpList(filename)
+// SumAcc sums up the accumulator for a file
+func SumAcc(opList []Op) (finishes bool, acc int64) {
 	seen := mapset.NewSet()
-	var idx, acc int64
-
-	for idx < int64(len(opList)) {
+	idx := int64(0)
+	for int(idx) < len(opList) {
 		if seen.Contains(idx) {
-			return false, 0
+			return false, acc
 		}
 		seen.Add(idx)
 		op := opList[idx]
@@ -73,71 +71,41 @@ func TerminatesAndAcc(filename string) (bool, int64) {
 	return true, acc
 }
 
-func OpsTerminates(opList []Op) bool {
-	seen := mapset.NewSet()
-	idx := 0
-	for idx < len(opList) {
-		if seen.Contains(idx) {
-			return false
-		}
-		seen.Add(idx)
-		op := opList[idx]
-		if op.instruction == "nop" {
-			idx++
-		} else if op.instruction == "acc" {
-			idx++
-		} else if op.instruction == "jmp" {
-			idx += int(op.offset)
-		}
-	}
-	return true
-}
-
+// Part1 answers part 1
 func Part1(filename string) (acc int64) {
-	opList := OpList(filename)
-	seen := mapset.NewSet()
-	idx := int64(0)
-	for !seen.Contains(idx) && int(idx) != len(opList) {
-		seen.Add(idx)
-		op := opList[idx]
-		if op.instruction == "nop" {
-			idx++
-		} else if op.instruction == "acc" {
-			acc += op.offset
-			idx++
-		} else if op.instruction == "jmp" {
-			idx += op.offset
-		}
-	}
-	return
+	opList := RecordsFromFile(filename)
+	_, acc = SumAcc(opList)
+	return acc
 }
 
-func ReportTerminates(ops []Op, idx int, send chan<- int) {
-	if OpsTerminates(ops) {
-		send <- idx
+// ReportTerminates tells us what the accumulator was if this run succeeded
+func ReportTerminates(ops []Op, idx int, send chan<- int64) {
+	finishes, acc := SumAcc(ops)
+	if finishes {
+		send <- acc
 	}
 }
 
-func Part2(filename string) int {
-	opList := OpList(filename)
-	send := make(chan int)
-	for idx, op := range opList {
+// SuccessfulAccumulator tries to run the opList once for each possible single instruction flip
+// and returns the accumulator of the successful run
+func SuccessfulAccumulator(opList []Op) int64 {
+	send := make(chan int64)
+	for idx := range opList {
 		tmp := make([]Op, len(opList))
 		copy(tmp, opList)
-		if op.instruction == "jmp" {
-			tmp[idx].instruction = "nop"
-			go func(i int) {
-				go ReportTerminates(tmp, i, send)
-			}(idx)
-		} else if op.instruction == "nop" {
-			tmp[idx].instruction = "jmp"
-			go func(i int) {
-				ReportTerminates(tmp, i, send)
-			}(idx)
-		}
+		tmp[idx].Flip()
+		go func(i int) {
+			go ReportTerminates(tmp, i, send)
+		}(idx)
 	}
 	for value := range send {
 		return value
 	}
 	return 0
+}
+
+// Part2 answers part 2
+func Part2(filename string) int64 {
+	opList := RecordsFromFile(filename)
+	return SuccessfulAccumulator(opList)
 }

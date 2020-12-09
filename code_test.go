@@ -1,7 +1,6 @@
 package advent20201208_test
 
 import (
-	"fmt"
 	"testing"
 
 	advent "github.com/bwarren2/advent20201208"
@@ -17,12 +16,14 @@ func TestOpList(t *testing.T) {
 }
 
 func TestPart1(t *testing.T) {
-	// fmt.Println(advent.Part1("input.txt"))
+	value := advent.Part1("input.txt")
+	if value != 2014 {
+		t.Errorf("Got the wrong value! %v", value)
+	}
 }
 func TestPart2(t *testing.T) {
-	fmt.Println(advent.Part2("input.txt"))
-}
-
-func TestPart22(t *testing.T) {
-	// fmt.Println(advent.Part1("input_munged.txt"))
+	value := advent.Part2("input.txt")
+	if value != 2251 {
+		t.Errorf("Got the wrong value! %v", value)
+	}
 }
