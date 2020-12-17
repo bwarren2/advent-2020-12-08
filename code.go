@@ -79,7 +79,7 @@ func Part1(filename string) (acc int64) {
 }
 
 // ReportTerminates tells us what the accumulator was if this run succeeded
-func ReportTerminates(ops []Op, idx int, send chan<- int64) {
+func ReportTerminates(ops []Op, send chan<- int64) {
 	finishes, acc := SumAcc(ops)
 	if finishes {
 		send <- acc
@@ -94,9 +94,9 @@ func SuccessfulAccumulator(opList []Op) int64 {
 		tmp := make([]Op, len(opList))
 		copy(tmp, opList)
 		tmp[idx].Flip()
-		go func(i int) {
-			go ReportTerminates(tmp, i, send)
-		}(idx)
+		go func(ops []Op) {
+			go ReportTerminates(tmp, send)
+		}(tmp)
 	}
 	for value := range send {
 		return value
